@@ -1,0 +1,99 @@
+<?php
+
+/**
+ * @file
+ * axecustom.module
+ */
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Access\AccessResult;
+use Drupal\node\NodeInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
+
+/**
+ * Get the latest nid of page content type.
+ *
+ * @return mixed
+ */
+function _axecustom_get_latest_node_page() {
+  $connection = \Drupal::database();
+
+  $query = $connection->select('node', 'n');
+  $query->addField('n', 'nid');
+  $query->condition('n.type', 'page');
+  $query->range(0,1);
+
+  $page = $query->execute()->fetchField();
+  return $page;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function axecustom_form_system_site_information_settings_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $axecustom_settings = \Drupal::configFactory()->getEditable('axecustom.settings');
+  $node_page = _axecustom_get_latest_node_page();
+
+  $form['axecustom'] = array(
+    '#type' => 'details',
+    '#title' => t('Axelerant Custom Configuration'),
+    '#open' => TRUE,
+  );
+
+  $form['axecustom']['siteapikey'] = [
+    '#type' => 'textfield',
+    '#title' => t('Site API Key'),
+    '#default_value' => ($axecustom_settings->get('siteapikey') == '')? 'No API Key yet' : $axecustom_settings->get('siteapikey'),
+  ];
+
+  if ($axecustom_settings->get('siteapikey') != '' && !empty($node_page)) {
+    $form['axecustom']['siteurlnodejsoninfo'] = [
+      '#type' => 'item',
+      '#markup' => t('<strong>Suggested to install REST module first before viewing this URL/link below.</strong>'),
+    ];
+
+    $form['axecustom']['siteurlnodejson'] = [
+      '#type' => 'link',
+      '#title' => t('URL/link of node in json format (Please view this URL/link using anonymous user)'),
+      '#url' => Url::fromUri('internal:/node/' . $node_page . '?_format=json'),
+    ];
+  }
+
+  $form['#submit'][] = '_axecustom_siteapikey_form_submit';
+
+  if ($axecustom_settings->get('siteapikey') != '') {
+    $form['actions']['submit']['#value'] = t('Update Configuration');
+  }
+}
+
+/**
+ * Custom callback for form submit.
+ */
+function _axecustom_siteapikey_form_submit(&$form, FormStateInterface $form_state) {
+  $axecustom_settings = \Drupal::configFactory()->getEditable('axecustom.settings');
+
+  $axecustom_settings->set('siteapikey', $form_state->getValue(['siteapikey']));
+  $axecustom_settings->save();
+
+  if ($axecustom_settings->get('siteapikey') != '') {
+    drupal_set_message(t('Great! You\'ve just saved %value as your Site API Key.', ['%value' => $axecustom_settings->get('siteapikey')]));
+  }
+
+  // Clear Drupal cache to apply the node access affect.
+  drupal_flush_all_caches();
+}
+
+/**
+ * Implements hook_node_access().
+ */
+function axecustom_node_access(NodeInterface $node, $op, AccountInterface $account) {
+  $axecustom_settings = \Drupal::configFactory()->getEditable('axecustom.settings');
+
+  switch ($op) {
+    case 'view':
+      if ($axecustom_settings->get('siteapikey') == '' && $node->getType() == 'page') {
+        return AccessResult::forbidden();
+      }
+  }
+}

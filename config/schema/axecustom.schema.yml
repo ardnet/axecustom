@@ -1,0 +1,7 @@
+axecustom.settings:
+  type: config_object
+  label: 'Axe Custom Settings'
+  mapping:
+    siteapikey:
+      type: string
+      label: 'Site Api Key'
