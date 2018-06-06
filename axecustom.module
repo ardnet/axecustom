@@ -14,7 +14,7 @@ use Drupal\Core\Url;
 /**
  * Get the latest nid of page content type.
  *
- * @return mixed
+ * @return string
  */
 function _axecustom_get_latest_node_page() {
   $connection = \Drupal::database();
